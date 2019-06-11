@@ -1,6 +1,7 @@
 #! /usr/bin/env ruby
 
 require 'pg'
+require 'io/console'
 
 class ExpenseData
   def initialize
@@ -22,6 +23,21 @@ class ExpenseData
     sql = "SELECT * FROM expenses WHERE memo ILIKE $1;"
     result = connection.exec_params(sql, ["%#{term}%"])
     show(result)
+  end
+
+  def delete_expense(id)
+    sql_selection = "SELECT * FROM expenses WHERE id = $1;"
+    result = connection.exec_params(sql_selection, [id])
+    abort "There is no expense with the id '#{id}'" if result.ntuples == 0
+    sql_deletion = "DELETE FROM expenses WHERE id = $1;"
+    connection.exec_params(sql_deletion, [id])
+    puts 'The following expense has been deleted:'
+    show(result)
+  end
+
+  def delete_all_expenses
+    connection.exec("DELETE FROM expenses;")
+    puts 'All expenses have been deleted.'
   end
 
   protected
@@ -59,7 +75,7 @@ class CLI
     true
   end
 
-  def search_term_present?(cli_args)
+  def second_argument_present?(cli_args)
     return false if cli_args[1].nil?
     true
   end
@@ -75,9 +91,18 @@ class CLI
       memo = cli_args[2]
       expense_app.add_expense(amount, memo)
     when 'search'
-      abort 'You must provide a search term' unless search_term_present?(cli_args)
+      abort 'You must provide a search term' unless second_argument_present?(cli_args)
       term = cli_args[1]
       expense_app.search_expenses(term)
+    when 'delete'
+      abort 'You must provide an expense id' unless second_argument_present?(cli_args)
+      id = cli_args[1]
+      expense_app.delete_expense(id)
+    when 'clear'
+      puts 'This will remove all expenses. Are you sure? (y/n)'
+      verification = $stdin.getch
+      return unless verification.match?(/^y/i)
+      expense_app.delete_all_expenses
     else
       puts display_help
     end
