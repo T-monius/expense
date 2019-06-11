@@ -28,7 +28,7 @@ class ExpenseData
   def delete_expense(id)
     sql_selection = "SELECT * FROM expenses WHERE id = $1;"
     result = connection.exec_params(sql_selection, [id])
-    abort "There is no expense with the id '#{id}'" if result.ntuples == 0
+    abort "There is no expense with the id '#{id}'" if result.ntuples.zero?
     sql_deletion = "DELETE FROM expenses WHERE id = $1;"
     connection.exec_params(sql_deletion, [id])
     puts 'The following expense has been deleted:'
@@ -44,10 +44,20 @@ class ExpenseData
   attr_accessor :connection
 
   def show(result)
-      result.each do |item|
+    tuples_count = result.ntuples
+    abort 'There are no expenses.' if tuples_count.zero?
+    puts "There are #{tuples_count} expense#{'s' if count != 1}"
+    result.each do |item|
       puts " #{item["id"].rjust(3)} | #{item["created_on"]} |#{item["amount"].rjust(12)}" \
            " | #{item["memo"]}"
     end
+    show_total(result)
+  end
+
+  def show_total(result)
+    total = result.field_values('amount').map(&:to_f).sum.round(2).to_s
+    puts '-' * 50
+    puts  "Total" + "#{total.rjust(26)}"    
   end
 end
 
