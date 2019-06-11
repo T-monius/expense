@@ -2,48 +2,70 @@
 
 require 'pg'
 
-CONNECTION = PG.connect(dbname: "expenses")
-
-def list_expenses
-  result = CONNECTION.exec("SELECT * FROM expenses ORDER BY created_on ASC;")
-  result.each do |item|
-    puts " #{item["id"].rjust(3)} | #{item["created_on"]} |#{item["amount"].rjust(12)}" \
-         " | #{item["memo"]}"
+class ExpenseData
+  def initialize
+    self.connection = PG.connect(dbname: "expenses")
   end
+
+  def list_expenses
+    result = connection.exec("SELECT * FROM expenses ORDER BY created_on ASC;")
+    result.each do |item|
+      puts " #{item["id"].rjust(3)} | #{item["created_on"]} |#{item["amount"].rjust(12)}" \
+           " | #{item["memo"]}"
+    end
+  end
+
+  def add_expense(amount, memo)
+    sql = "INSERT INTO expenses(amount, memo, created_on) " \
+          "VALUES ($1, $2, NOW());"
+    connection.exec_params(sql, [amount, memo])
+  end
+
+  protected
+  attr_accessor :connection
 end
 
-def display_help
-  <<~HELP_INFO
-    An expense recording system
+class CLI
+  def initialize
+    self.expense_app = ExpenseData.new
+  end
 
-    Commands:
+  def display_help
+    <<~HELP_INFO
+      An expense recording system
 
-    add AMOUNT MEMO [DATE] - record a new expense
-    clear - delete all expenses
-    list - list all expenses
-    delete NUMBER - remove expense with id NUMBER
-    search QUERY - list expenses with a matching memo field
-  HELP_INFO
+      Commands:
+
+      add AMOUNT MEMO [DATE] - record a new expense
+      clear - delete all expenses
+      list - list all expenses
+      delete NUMBER - remove expense with id NUMBER
+      search QUERY - list expenses with a matching memo field
+    HELP_INFO
+  end
+
+  def add_arguments_present?(cli_args)
+    return false if cli_args[1].nil? || cli_args[2].nil?
+    true
+  end
+
+  def run(cli_args)
+    command = cli_args[0]
+    case command
+    when 'list'
+      expense_app.list_expenses
+    when 'add'
+      abort 'You must provide an amount and memo.' unless add_arguments_present?(cli_args)
+      amount = cli_args[1]
+      memo = cli_args[2]
+      expense_app.add_expense(amount, memo)
+    else
+      puts display_help
+    end
+  end
+
+  protected
+  attr_accessor :expense_app
 end
 
-def add_expense(amount, memo)
-  sql = "INSERT INTO expenses(amount, memo, created_on) " \
-        "VALUES ($1, $2, NOW());"
-  CONNECTION.exec_params(sql, [amount, memo])
-end
-
-def add_arguments_present?
-  return false if ARGV[1].nil? || ARGV[2].nil?
-  true
-end
-
-command = ARGV[0]
-case command
-when 'list'
-  list_expenses
-when 'add'
-  puts 'You must provide an amount and memo.' unless add_arguments_present?
-  add_expense(ARGV[1], ARGV[2]) if add_arguments_present?
-else
-  puts display_help
-end
+CLI.new.run(ARGV)
