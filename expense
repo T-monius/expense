@@ -6,6 +6,7 @@ require 'io/console'
 class ExpenseData
   def initialize
     self.connection = PG.connect(dbname: "expenses")
+    setup_schema
   end
 
   def list_expenses
@@ -42,6 +43,30 @@ class ExpenseData
 
   protected
   attr_accessor :connection
+
+  def setup_schema
+    count = count_expense_tables
+    create_expense_table if count.zero?
+  end
+
+  def count_expense_tables
+    result = connection.exec("SELECT COUNT(*) FROM information_schema.tables WHERE " \
+                             "table_schema = 'public' AND table_name = 'expenses';")
+    result.field_values('count').pop.to_i    
+  end
+
+  def create_expense_table
+     connection.exec <<~SQL
+        CREATE TABLE expenses (
+          id serial PRIMARY KEY,
+          amount numeric(6,2) NOT NULL CHECK (amount >= 0.01),
+          memo text NOT NULL,
+          created_on date NOT NULL
+        );
+      SQL
+    # schema = File.read('schema.sql')
+    # schema.split(';').each { |sql_stat| connection.exec(sql_stat) }
+  end
 
   def show(result)
     tuples_count = result.ntuples
